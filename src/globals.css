@@ -1,0 +1,73 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* 焦点可见全局样式 — a11y */
+  :focus-visible {
+    outline: 2px solid #58a6ff;
+    outline-offset: 1px;
+    border-radius: 2px;
+  }
+
+  /* 去除 mouse 点击时的 focus ring，仅键盘导航时显示 */
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+}
+
+* {
+  scrollbar-width: thin;
+}
+
+.dark {
+  --scrollbar-thumb: #30363d;
+  color-scheme: dark;
+}
+
+.light {
+  --scrollbar-thumb: #d0d7de;
+  color-scheme: light;
+}
+
+* {
+  scrollbar-color: var(--scrollbar-thumb, #30363d) transparent;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+.code-block pre {
+  tab-size: 2;
+  font-family: theme('fontFamily.mono');
+  font-size: 0.8125rem;
+}
+
+/* 动画帧暂停偏好 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* 移动端 < 768px：右面板隐藏，侧边栏为 overlay */
+@media (max-width: 767px) {
+  .right-panel-mobile {
+    display: none;
+  }
+}
+
+/* 中等屏幕 768px-1023px：右面板更窄 */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .w-right-panel {
+    width: 300px !important;
+  }
+}
