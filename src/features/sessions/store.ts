@@ -1,26 +1,12 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Session } from '@/lib/types';
-import { fetchSessions as fetchSessionsApi } from '@/lib/dashboard-connection';
-
-interface DashboardSession {
-  id: string;
-  title: string;
-  status: string;
-  created_at: string;
-  updated_at: string;
-  model_id?: string;
-}
-
-const STATUS_MAP: Record<string, string> = {
-  running: 'running',
-  completed: 'completed',
-  error: 'error',
-  pending_approval: 'pending_approval',
-};
 
 // ============================================================
 // Store
+// Sessions are persisted to localStorage via zustand persist middleware.
+// Hermes backend does not provide a session list HTTP API — sessions are
+// managed locally and synced on chat via conversation_id / lastResponseId.
 // ============================================================
 
 interface SessionStore {
@@ -37,13 +23,14 @@ interface SessionStore {
   removeSession: (id: string) => void;
   updateSession: (id: string, patch: Partial<Session>) => void;
   updateLastResponseId: (id: string, lastResponseId: string) => void;
+  /** No-op: dashboard API not available, sessions are local-only */
   fetchFromDashboard: () => Promise<void>;
   setDashboardAvailable: (v: boolean) => void;
 }
 
 export const useSessionStore = create<SessionStore>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       sessions: [],
       activeId: null,
       search: '',
@@ -69,33 +56,11 @@ export const useSessionStore = create<SessionStore>()(
             s.id === id ? { ...s, lastResponseId } : s
           ),
         })),
+      /** Dashboard API does not exist — no-op for backward compatibility */
       fetchFromDashboard: async () => {
-        set({ isLoading: true });
-        try {
-          const existing = get().sessions;
-          const dashboardSessions = await fetchSessionsApi();
-          // Merge: keep local lastResponseId/conversationId for matched sessions
-          const merged = dashboardSessions.map((ds) => {
-            const local = existing.find((s) => s.id === ds.id);
-            return {
-              id: ds.id,
-              title: ds.title || '未命名会话',
-              status: (STATUS_MAP[ds.status] || 'completed') as Session['status'],
-              createdAt: ds.created_at,
-              updatedAt: ds.updated_at,
-              modelId: ds.model_id,
-              // Preserve local-only fields
-              lastResponseId: local?.lastResponseId,
-              conversationId: local?.conversationId,
-              isShared: local?.isShared,
-            };
-          });
-          set({ sessions: merged, dashboardAvailable: true });
-        } catch {
-          set({ dashboardAvailable: false });
-        } finally {
-          set({ isLoading: false });
-        }
+        // Hermes API Server has no session list endpoint.
+        // Sessions are managed locally via localStorage.
+        set({ dashboardAvailable: false });
       },
       setDashboardAvailable: (v) => set({ dashboardAvailable: v }),
     }),

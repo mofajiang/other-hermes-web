@@ -1,9 +1,9 @@
 import { useMemo, useCallback, useRef, useState, useEffect } from 'react';
-import { PanelLeft, Plus, Terminal, Server, Menu, RefreshCw, WifiOff, Database } from 'lucide-react';
+import { PanelLeft, Plus, Terminal, Server, Menu, WifiOff, Database } from 'lucide-react';
 import { useSessionStore } from './store';
 import { SessionItem } from './SessionItem';
 import { cn } from '@/lib/cn';
-import { checkDashboardHealth } from '@/lib/dashboard-connection';
+import { useConnectionStore } from '@/lib/connection';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -56,19 +56,10 @@ export function Sidebar({ isOpen, onToggle, onServerStatus }: SidebarProps) {
   const activeId = useSessionStore((s) => s.activeId);
   const setActiveId = useSessionStore((s) => s.setActiveId);
   const addSession = useSessionStore((s) => s.addSession);
-  const fetchFromDashboard = useSessionStore((s) => s.fetchFromDashboard);
-  const dashboardAvailable = useSessionStore((s) => s.dashboardAvailable);
+  const dashboardAvailable = useConnectionStore((s) => s.status === 'connected');
   const sessionsLoading = useSessionStore((s) => s.isLoading);
 
-  // Auto-fetch sessions from Web Dashboard on mount
-  useEffect(() => {
-    checkDashboardHealth().then((status) => {
-      if (status.connected) {
-        fetchFromDashboard();
-      }
-    });
-  }, [fetchFromDashboard]);
-
+  // Dashboard API not available — sessions are local-only
   const [mobileOverlay, setMobileOverlay] = useState(false);
 
   const sessions = useMemo(
@@ -182,7 +173,7 @@ export function Sidebar({ isOpen, onToggle, onServerStatus }: SidebarProps) {
         >
           {sessionsLoading && (
             <div className="flex items-center justify-center gap-1.5 text-2xs text-dark-text-tertiary py-4">
-              <RefreshCw size={11} className="animate-spin" />
+              <span className="inline-block w-2.5 h-2.5 border border-dark-border-default border-t-accent-blue rounded-full animate-spin" />
               加载中...
             </div>
           )}
@@ -229,7 +220,7 @@ export function Sidebar({ isOpen, onToggle, onServerStatus }: SidebarProps) {
               {dashboardAvailable ? (
                 <>
                   <Database size={10} className="text-accent-green" />
-                  <span className="text-accent-green">Dashboard</span>
+                  <span className="text-accent-green">已连接</span>
                 </>
               ) : (
                 <>
@@ -238,16 +229,6 @@ export function Sidebar({ isOpen, onToggle, onServerStatus }: SidebarProps) {
                 </>
               )}
             </div>
-            {dashboardAvailable && (
-              <button
-                onClick={fetchFromDashboard}
-                disabled={sessionsLoading}
-                className="flex items-center gap-0.5 text-2xs text-accent-blue hover:underline disabled:opacity-30"
-              >
-                <RefreshCw size={10} className={cn(sessionsLoading && 'animate-spin')} />
-                刷新
-              </button>
-            )}
           </div>
         </div>
       </aside>
