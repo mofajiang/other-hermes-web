@@ -1,81 +1,7 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { FileEntry } from '@/lib/types';
 import { cn } from '@/lib/cn';
-import { ChevronRight, FolderOpen, File, Folder } from 'lucide-react';
-
-// ============================================================
-// Mock tree — P1 替换为 API 数据
-// ============================================================
-const mockTree: FileEntry[] = [
-  {
-    path: 'src', name: 'src', type: 'directory',
-    children: [
-      {
-        path: 'src/app', name: 'app', type: 'directory',
-        children: [
-          { path: 'src/app/App.tsx', name: 'App.tsx', type: 'file', size: 342 },
-          {
-            path: 'src/app/shell', name: 'shell', type: 'directory',
-            children: [
-              { path: 'src/app/shell/AppShell.tsx', name: 'AppShell.tsx', type: 'file', size: 1200 },
-            ],
-          },
-          {
-            path: 'src/app/theme', name: 'theme', type: 'directory',
-            children: [
-              { path: 'src/app/theme/ThemeProvider.tsx', name: 'ThemeProvider.tsx', type: 'file', size: 840 },
-              { path: 'src/app/theme/store.ts', name: 'store.ts', type: 'file', size: 320 },
-            ],
-          },
-        ],
-      },
-      {
-        path: 'src/features', name: 'features', type: 'directory',
-        children: [
-          {
-            path: 'src/features/sessions', name: 'sessions', type: 'directory',
-            children: [
-              { path: 'src/features/sessions/Sidebar.tsx', name: 'Sidebar.tsx', type: 'file', size: 2300 },
-              { path: 'src/features/sessions/SessionItem.tsx', name: 'SessionItem.tsx', type: 'file', size: 450 },
-              { path: 'src/features/sessions/TopBar.tsx', name: 'TopBar.tsx', type: 'file', size: 1100 },
-              { path: 'src/features/sessions/store.ts', name: 'store.ts', type: 'file', size: 600 },
-            ],
-          },
-          {
-            path: 'src/features/messages', name: 'messages', type: 'directory',
-            children: [
-              { path: 'src/features/messages/ChatPanel.tsx', name: 'ChatPanel.tsx', type: 'file', size: 780 },
-              { path: 'src/features/messages/MessageBubble.tsx', name: 'MessageBubble.tsx', type: 'file', size: 2100 },
-              { path: 'src/features/messages/ChatInput.tsx', name: 'ChatInput.tsx', type: 'file', size: 1600 },
-              { path: 'src/features/messages/store.ts', name: 'store.ts', type: 'file', size: 420 },
-            ],
-          },
-          {
-            path: 'src/features/permissions', name: 'permissions', type: 'directory',
-            children: [
-              { path: 'src/features/permissions/PermissionCard.tsx', name: 'PermissionCard.tsx', type: 'file', size: 1500 },
-            ],
-          },
-        ],
-      },
-      {
-        path: 'src/lib', name: 'lib', type: 'directory',
-        children: [
-          { path: 'src/lib/types.ts', name: 'types.ts', type: 'file', size: 900 },
-          { path: 'src/lib/cn.ts', name: 'cn.ts', type: 'file', size: 80 },
-          { path: 'src/lib/api.ts', name: 'api.ts', type: 'file', size: 320 },
-          { path: 'src/lib/sse.ts', name: 'sse.ts', type: 'file', size: 550 },
-        ],
-      },
-      { path: 'src/globals.css', name: 'globals.css', type: 'file', size: 210 },
-      { path: 'src/main.tsx', name: 'main.tsx', type: 'file', size: 130 },
-    ],
-  },
-  { path: 'index.html', name: 'index.html', type: 'file', size: 480 },
-  { path: 'package.json', name: 'package.json', type: 'file', size: 1100 },
-  { path: 'tailwind.config.ts', name: 'tailwind.config.ts', type: 'file', size: 800 },
-  { path: 'vite.config.ts', name: 'vite.config.ts', type: 'file', size: 340 },
-];
+import { ChevronRight, FolderOpen, File, Folder, RefreshCw, AlertCircle } from 'lucide-react';
 
 // ============================================================
 // FileTreeNode
@@ -132,15 +58,72 @@ function FileTreeNode({ entry, depth = 0 }: { entry: FileEntry; depth?: number }
 // ============================================================
 // FileExplorer
 // ============================================================
+type LoadState = 'idle' | 'loading' | 'error' | 'empty';
+
 export function FileExplorer() {
+  const [entries, setEntries] = useState<FileEntry[]>([]);
+  const [loadState, setLoadState] = useState<LoadState>('idle');
+
+  const fetchFiles = useCallback(async () => {
+    setLoadState('loading');
+    try {
+      const res = await fetch('/api/file', { signal: AbortSignal.timeout(5000) });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data: FileEntry[] = await res.json();
+      if (data.length === 0) {
+        setLoadState('empty');
+      } else {
+        setEntries(data);
+        setLoadState('idle');
+      }
+    } catch {
+      setLoadState('empty');
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchFiles();
+  }, [fetchFiles]);
+
   return (
     <div className="text-xs">
       <p className="text-dark-text-tertiary mb-2 text-2xs uppercase tracking-wide">文件浏览器</p>
-      <div className="space-y-px">
-        {mockTree.map((entry) => (
-          <FileTreeNode key={entry.path} entry={entry} />
-        ))}
-      </div>
+
+      {loadState === 'loading' && (
+        <div className="flex items-center justify-center gap-1.5 py-8 text-dark-text-tertiary">
+          <RefreshCw size={14} className="animate-spin" />
+          加载中...
+        </div>
+      )}
+
+      {loadState === 'empty' && (
+        <div className="flex flex-col items-center justify-center py-8 text-dark-text-tertiary gap-2">
+          <AlertCircle size={20} className="opacity-40" />
+          <p className="text-xs">文件浏览器暂不可用</p>
+          <p className="text-2xs text-center">在聊天中使用 <code className="text-accent-blue">/file</code> 命令浏览或搜索文件</p>
+        </div>
+      )}
+
+      {loadState === 'error' && (
+        <div className="flex flex-col items-center justify-center py-8 text-dark-text-tertiary gap-2">
+          <AlertCircle size={20} className="opacity-40" />
+          <p className="text-xs">加载文件树失败</p>
+          <button
+            onClick={fetchFiles}
+            className="text-2xs text-accent-blue hover:underline flex items-center gap-1"
+          >
+            <RefreshCw size={10} /> 重试
+          </button>
+        </div>
+      )}
+
+      {loadState === 'idle' && entries.length > 0 && (
+        <div className="space-y-px">
+          {entries.map((entry) => (
+            <FileTreeNode key={entry.path} entry={entry} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

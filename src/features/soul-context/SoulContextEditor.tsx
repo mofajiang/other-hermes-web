@@ -1,16 +1,17 @@
-import { useState } from 'react';
-import { FileText, Save, RotateCcw } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { FileText, Save, RotateCcw, Cloud, CloudOff } from 'lucide-react';
 import { cn } from '@/lib/cn';
+import { useConnectionStore } from '@/lib/connection';
 
 // ============================================================
 // Tabs
 // ============================================================
 type EditorTab = 'soul' | 'context' | 'agents';
 
-const EDITOR_TABS: { id: EditorTab; label: string; icon: React.ReactNode }[] = [
-  { id: 'soul',    label: 'SOUL.md',     icon: <FileText size={13} /> },
-  { id: 'context', label: 'Context Files', icon: <FileText size={13} /> },
-  { id: 'agents',  label: 'AGENTS.md',    icon: <FileText size={13} /> },
+const EDITOR_TABS: { id: EditorTab; label: string }[] = [
+  { id: 'soul',    label: 'SOUL.md' },
+  { id: 'context', label: 'Context Files' },
+  { id: 'agents',  label: 'AGENTS.md' },
 ];
 
 const STORAGE_KEY = 'hermes-soul-context';
@@ -88,22 +89,92 @@ const DEFAULT_CONTENT: Record<EditorTab, string> = {
 };
 
 // ============================================================
+// API sync
+// ============================================================
+
+async function fetchFromBackend(tab: EditorTab): Promise<string | null> {
+  try {
+    const { status, apiKey } = useConnectionStore.getState();
+    if (status !== 'connected') return null;
+
+    const headers: Record<string, string> = {};
+    if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+
+    // The backend serves SOUL.md at /config or /config/soul
+    const res = await fetch(`/api/config`, { signal: AbortSignal.timeout(3000), headers });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (tab === 'soul' && data.soul) return data.soul;
+    if (tab === 'context' && data.context) return data.context;
+    if (tab === 'agents' && data.agents) return data.agents;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function saveToBackend(tab: EditorTab, content: string): Promise<boolean> {
+  try {
+    const { status, apiKey } = useConnectionStore.getState();
+    if (status !== 'connected') return false;
+
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+
+    const res = await fetch(`/api/config`, {
+      method: 'PUT',
+      signal: AbortSignal.timeout(3000),
+      headers,
+      body: JSON.stringify({ [tab]: content }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+// ============================================================
 // Component
 // ============================================================
 export function SoulContextEditor() {
   const [tab, setTab] = useState<EditorTab>('soul');
   const [contents, setContents] = useState<Record<EditorTab, string>>(loadContent);
   const [dirty, setDirty] = useState<Record<EditorTab, boolean>>({ soul: false, context: false, agents: false });
+  const [synced, setSynced] = useState<Record<EditorTab, boolean>>({ soul: false, context: false, agents: false });
+  const isConnected = useConnectionStore((s) => s.status === 'connected');
+
+  // Try fetching from backend on mount
+  useEffect(() => {
+    if (!isConnected) return;
+    (async () => {
+      for (const t of EDITOR_TABS.map((e) => e.id)) {
+        const backendContent = await fetchFromBackend(t);
+        if (backendContent !== null) {
+          setContents((prev) => ({ ...prev, [t]: backendContent }));
+          setSynced((prev) => ({ ...prev, [t]: true }));
+        }
+      }
+    })();
+  }, [isConnected]);
 
   const handleChange = (val: string) => {
     setContents((prev) => ({ ...prev, [tab]: val }));
     setDirty((prev) => ({ ...prev, [tab]: true }));
   };
 
-  const handleSave = () => {
+  const handleSave = useCallback(async () => {
+    // Always save to localStorage
     saveContent(contents);
     setDirty((prev) => ({ ...prev, [tab]: false }));
-  };
+
+    // Try saving to backend
+    if (isConnected) {
+      const ok = await saveToBackend(tab, contents[tab]);
+      if (ok) {
+        setSynced((prev) => ({ ...prev, [tab]: true }));
+      }
+    }
+  }, [contents, tab, isConnected]);
 
   const handleReset = () => {
     setContents((prev) => ({ ...prev, [tab]: DEFAULT_CONTENT[tab] }));
@@ -127,13 +198,23 @@ export function SoulContextEditor() {
                 : 'border-transparent text-dark-text-tertiary hover:text-dark-text-secondary'
             )}
           >
-            {t.icon}
             {t.label}
             {dirty[t.id] && <span className="w-1.5 h-1.5 rounded-full bg-accent-yellow" />}
+            {synced[t.id] && !dirty[t.id] && <Cloud size={10} className="text-accent-green" />}
           </button>
         ))}
 
         <div className="ml-auto flex items-center gap-1 px-2">
+          {isConnected && (
+            <span className="flex items-center gap-0.5 text-2xs text-accent-green" title="已连接后端">
+              <Cloud size={10} />
+            </span>
+          )}
+          {!isConnected && (
+            <span className="flex items-center gap-0.5 text-2xs text-dark-text-tertiary" title="离线模式">
+              <CloudOff size={10} />
+            </span>
+          )}
           <button
             onClick={handleReset}
             className="p-1 rounded hover:bg-dark-bg-tertiary text-dark-text-tertiary hover:text-dark-text-primary transition-colors"
@@ -178,7 +259,10 @@ export function SoulContextEditor() {
 
       {/* Footer */}
       <div className="flex items-center justify-between px-2 py-1 border-t border-dark-border-subtle text-2xs text-dark-text-tertiary shrink-0">
-        <span>{EDITOR_TABS.find((t) => t.id === tab)?.label}</span>
+        <span className="flex items-center gap-1">
+          {EDITOR_TABS.find((t) => t.id === tab)?.label}
+          {synced[tab] && !dirty[tab] && <Cloud size={9} className="text-accent-green" />}
+        </span>
         <span>{lineCount} 行</span>
       </div>
     </div>

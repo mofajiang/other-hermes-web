@@ -236,6 +236,12 @@ export function ChatInput({ sessionId, isStreaming, triggerSendRef }: ChatInputP
           // ---- Responses API SSE 格式 ----
           // 文档: https://hermes-agent.nousresearch.com/docs
 
+          // 响应创建 — 捕获 responseId 用于早期追踪
+          if (event === 'response.created') {
+            capturedResponseId = (data as { id?: string })?.id || null;
+            return;
+          }
+
           // 文本增量
           if (event === 'response.output_text.delta') {
             const delta = (data as { delta?: string }).delta || '';

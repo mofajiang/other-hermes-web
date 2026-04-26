@@ -116,6 +116,55 @@ export const responsesApi = {
 };
 
 // ============================================================
+// Chat Completions API
+// POST /v1/chat/completions
+// 轻量级替代 Responses API，用于无状态对话
+// ============================================================
+
+export interface ChatCompletionRequest {
+  model?: string;
+  messages: ChatMessage[];
+  stream?: boolean;
+  temperature?: number;
+  max_tokens?: number;
+}
+
+export interface ChatCompletionResponse {
+  id: string;
+  object: string;
+  model: string;
+  choices: {
+    index: number;
+    message: ChatMessage;
+    finish_reason: string;
+  }[];
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
+}
+
+export const chatApi = {
+  /** 非流式请求 */
+  create: (req: ChatCompletionRequest) =>
+    request<ChatCompletionResponse>('/v1/chat/completions', {
+      method: 'POST',
+      body: JSON.stringify({ ...req, stream: false }),
+    }),
+
+  /** 构建流式请求参数 */
+  streamRequest: (req: ChatCompletionRequest) => ({
+    url: `${getBaseUrl()}/v1/chat/completions`,
+    body: JSON.stringify({ ...req, stream: true }),
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(),
+    },
+  }),
+};
+
+// ============================================================
 // 会话管理 — Hermes 通过 /v1/responses + conversation_id 管理多轮对话
 // 前端侧维护本地会话列表（lastResponseId 链式追踪）
 // ============================================================

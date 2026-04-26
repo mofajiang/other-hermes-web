@@ -15,18 +15,29 @@ interface McpEntry {
 }
 
 // ============================================================
-// Mock — P2 接 API (GET/POST /mcp)
+// localStorage persistence
 // ============================================================
-const INITIAL_MCPS: McpEntry[] = [
-  { id: '1', name: 'filesystem', command: 'npx @anthropic/mcp-filesystem', args: ['/home/project'], status: 'connected', tools: ['read_file', 'write_file', 'list_dir'] },
-  { id: '2', name: 'web', command: 'npx @anthropic/mcp-web', args: [], status: 'disconnected', tools: ['web_search', 'web_fetch'] },
-];
+const STORAGE_KEY = 'hermes-mcp-list';
+
+function loadMcps(): McpEntry[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw) as McpEntry[];
+  } catch { /* ignore */ }
+  return [];
+}
+
+function saveMcps(mcps: McpEntry[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(mcps));
+  } catch { /* ignore */ }
+}
 
 // ============================================================
 // Component
 // ============================================================
 export function McpPanel() {
-  const [mcps, setMcps] = useState<McpEntry[]>(INITIAL_MCPS);
+  const [mcps, setMcps] = useState<McpEntry[]>(loadMcps);
   const [adding, setAdding] = useState(false);
   const [draftName, setDraftName] = useState('');
   const [draftCommand, setDraftCommand] = useState('');
@@ -42,31 +53,37 @@ export function McpPanel() {
     error: '错误',
   };
 
+  const updateMcps = (next: McpEntry[]) => {
+    setMcps(next);
+    saveMcps(next);
+  };
+
   const handleAdd = () => {
     if (!draftName.trim() || !draftCommand.trim()) return;
-    setMcps((prev) => [
-      ...prev,
+    const next = [
+      ...mcps,
       {
         id: crypto.randomUUID(),
         name: draftName.trim(),
         command: draftCommand.trim(),
         args: [],
-        status: 'disconnected',
+        status: 'disconnected' as const,
         tools: [],
       },
-    ]);
+    ];
+    updateMcps(next);
     setDraftName('');
     setDraftCommand('');
     setAdding(false);
   };
 
   const handleRemove = (id: string) => {
-    setMcps((prev) => prev.filter((m) => m.id !== id));
+    updateMcps(mcps.filter((m) => m.id !== id));
   };
 
   const handleToggle = (id: string) => {
-    setMcps((prev) =>
-      prev.map((m) =>
+    updateMcps(
+      mcps.map((m) =>
         m.id === id
           ? { ...m, status: m.status === 'connected' ? 'disconnected' : 'connected' }
           : m
@@ -110,7 +127,7 @@ export function McpPanel() {
         </div>
       )}
 
-      {mcps.length === 0 && <p className="text-dark-text-tertiary">未配置 MCP</p>}
+      {mcps.length === 0 && <p className="text-dark-text-tertiary">未配置 MCP。点击"添加"按钮添加 MCP 服务器。</p>}
 
       {mcps.map((mcp) => (
         <div key={mcp.id} className="rounded-md border border-dark-border-default overflow-hidden">

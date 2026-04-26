@@ -59,19 +59,35 @@ export const HERMES_CONFIG = {
 
     // 配置
     config: '/config',
+
+    // Health
+    health: '/health',
+    healthDetailed: '/health/detailed',
+
+    // Runs API
+    runs: '/v1/runs',
+    runEvents: (id: string) => `/v1/runs/${id}/events`,
+
+    // Jobs API
+    jobs: '/api/jobs',
+    jobById: (id: string) => `/api/jobs/${id}`,
   },
 
   // ============================================================
-  // SSE 事件映射 — OpenAI 格式
+  // SSE 事件映射 — OpenAI Responses API 格式
   // ============================================================
   sseEvents: {
     /** OpenAI chat/completions 格式：data 行默认 event 类型 */
     message: 'message',
     /** 流结束标记 */
     done: 'done',
-    /** Responses API 事件前缀 */
-    responseTextDelta: 'response.output_text.delta',
-    responseCompleted: 'response.completed',
-    responseToolCall:  'response.tool_call',
+    /** Responses API 事件 */
+    responseCreated:     'response.created',
+    responseTextDelta:   'response.output_text.delta',
+    responseOutputItemAdded: 'response.output_item.added',
+    responseOutputItemDone:  'response.output_item.done',
+    responseCompleted:   'response.completed',
+    responseFailed:      'response.failed',
+    responseToolCall:    'response.tool_call',
   },
 };
